@@ -1,99 +1,98 @@
 "use client";
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 export default function Home() {
+  const [input, setInput] = useState("");
   const [messages, setMessages] = useState([
     {
       id: "welcome",
       role: "ai",
-      text: "হ্যালো! ",
+      text: "Hello! I'm **Sirina**. Ask me anything about our products — I'm here to help! 🚀",
+      products: [],
     },
   ]);
-
-  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
   const messagesEndRef = useRef(null);
 
-  // অটো-স্ক্রোল টু বটম
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
-  // মেসেজ সাবমিট হ্যান্ডলার
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMessage = input.trim();
+    const userPrompt = input.trim();
     setInput("");
 
-    // ১. ইউজারের মেসেজ স্টেট-এ যোগ করা
-    const uId = Date.now().toString();
-    setMessages((prev) => [
-      ...prev,
-      { id: uId, role: "user", text: userMessage },
-    ]);
+    const userMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      text: userPrompt,
+      products: [],
+    };
+    setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
     try {
-      // ২. API কল করা
-      const response = await fetch("/api/book", {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ book: userMessage }),
+        body: JSON.stringify({ message: userPrompt }),
       });
-
-      if (!response.ok) throw new Error("API response error");
 
       const data = await response.json();
 
-      // ৩. AI এর রেসপন্স স্টেট-এ যোগ করা
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          role: "ai",
-          text: `**Author:** ${data.author}\n\n**Summary:** ${data.summary}`,
-        },
-      ]);
+      if (response.ok) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            role: "ai",
+            text: data.reply,
+            products: data.products || [], // ব্যাকএন্ড থেকে আসা প্রোডাক্ট লিস্ট
+          },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            role: "ai",
+            text: data.error || "Something went wrong!",
+            products: [],
+          },
+        ]);
+      }
     } catch (error) {
-      // এরর হ্যান্ডলিং
+      console.error("Frontend Fetch Error:", error);
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now().toString(),
+          id: (Date.now() + 1).toString(),
           role: "ai",
-          text: "❌ দুঃখিত, তথ্যটি খুঁজে পেতে সমস্যা হচ্ছে। দয়া করে আবার চেষ্টা করুন।",
+          text: "Failed to connect to server. Please try again.",
+          products: [],
         },
       ]);
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
-  // টেক্সট কপি করার ফাংশন
+  const clearChat = () => {
+    setMessages([
+      {
+        id: "welcome",
+        role: "ai",
+        text: "Chat cleared! Ask me anything new.",
+        products: [],
+      },
+    ]);
+  };
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    alert("Copied to clipboard!");
-  };
-
-  // চ্যাট হিস্ট্রি ক্লিয়ার করা
-  const clearChat = () => {
-    if (confirm("Are you sure you want to clear chat history?")) {
-      setMessages([
-        {
-          id: "welcome",
-          role: "ai",
-          text: "হ্যালো! আমি আপনার বইয়ের অ্যাসিস্ট্যান্ট। যেকোনো বইয়ের নাম লিখুন...",
-        },
-      ]);
-    }
+    alert("Text Copied To Your Clipboard!");
   };
 
   return (
@@ -105,9 +104,7 @@ export default function Home() {
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
               E-commerce AI Chatbot
             </h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              How can I help you ?
-            </p>
+            <p className="text-xs text-slate-400 mt-0.5">How can I help you?</p>
           </div>
           {messages.length > 1 && (
             <button
@@ -121,7 +118,7 @@ export default function Home() {
       </header>
 
       {/* 🔹 CHAT AREA */}
-      <main className="flex-1 max-w-[600px] w-full mx-auto p-4 overflow-y-auto pb-32 space-y-4">
+      <main className="flex-1 max-w-[600px] w-full mx-auto p-4 overflow-y-auto pb-32 space-y-6">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -129,6 +126,7 @@ export default function Home() {
               msg.role === "user" ? "items-end" : "items-start"
             } animate-fadeIn`}
           >
+            {/* চ্যাট বাবল */}
             <div
               className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md whitespace-pre-line group relative ${
                 msg.role === "user"
@@ -138,7 +136,7 @@ export default function Home() {
             >
               {msg.text}
 
-              {/* Copy Button for AI response */}
+              {/* Copy Button */}
               {msg.role === "ai" && msg.id !== "welcome" && (
                 <button
                   onClick={() => copyToClipboard(msg.text)}
@@ -148,10 +146,66 @@ export default function Home() {
                 </button>
               )}
             </div>
+
+            {/* 📦 প্রোডাক্ট কার্ড রেন্ডারিং (যদি এআই রেসপন্সে প্রোডাক্ট থাকে) */}
+            {msg.role === "ai" && msg.products && msg.products.length > 0 && (
+              <div className="w-full max-w-[85%] mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fadeIn">
+                {msg.products.map((product, idx) => (
+                  <div
+                    key={product._id || idx}
+                    className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-lg flex flex-col justify-between hover:border-blue-500/40 transition-all duration-200"
+                  >
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider font-semibold bg-slate-800 text-blue-400 px-2 py-0.5 rounded">
+                        {product.brand || "Gadget"}
+                      </span>
+                      <h3 className="font-bold text-slate-100 text-sm mt-1.5 line-clamp-1">
+                        {product.name}
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+                        {product.description}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase">
+                          Price
+                        </p>
+                        <p className="text-sm font-bold text-emerald-400">
+                          {product.price} BDT
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase text-right">
+                          Stock
+                        </p>
+                        <p
+                          className={`text-xs font-semibold text-right ${product.stock > 0 ? "text-blue-400" : "text-rose-500"}`}
+                        >
+                          {product.stock > 0
+                            ? `${product.stock} left`
+                            : "Out of Stock"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        alert(`Proceeding to checkout for ${product.name}`)
+                      }
+                      className="w-full mt-3 py-2 bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white rounded-lg text-xs font-medium transition-all duration-150"
+                    >
+                      Buy Now
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
 
-        {/* 🔹 LOADING STATE (THINKING INDICATOR) */}
+        {/* 🔹 LOADING STATE */}
         {isLoading && (
           <div className="flex justify-start animate-fadeIn">
             <div className="bg-slate-900 border border-slate-800 text-slate-400 text-sm rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-2 shadow-md">
@@ -177,7 +231,11 @@ export default function Home() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isLoading ? "Please wait..." : "Enter book name..."}
+              placeholder={
+                isLoading
+                  ? "Please wait..."
+                  : "Ask about products (e.g., iPhone 13, Laptop)..."
+              }
               disabled={isLoading}
               className="w-full bg-slate-900 border border-slate-800 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10 rounded-xl pl-4 pr-14 py-3.5 text-sm placeholder-slate-500 text-slate-100 transition-all duration-200 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
